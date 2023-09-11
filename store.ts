@@ -23,7 +23,9 @@ const load = async () => {
   console.time('Store loaded')
 
   try {
-    tokens = new Set((await file(`./tokens.txt`).text()).split('\n'))
+    tokens = new Set(
+      (await file(`./tokens.txt`).text()).split('\n').filter(Boolean)
+    )
     console.timeEnd('Tokens loaded')
   } catch (_) {}
 
