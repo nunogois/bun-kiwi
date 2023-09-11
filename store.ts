@@ -4,7 +4,7 @@ import { mkdir } from 'fs'
 let tokens = new Set<string>()
 let store = new Map<string, unknown>()
 
-export const check = (token: string) => !tokens.size || tokens.has(token)
+export const auth = (token: string) => !tokens.size || tokens.has(token)
 
 export const get = (key: string) => store.get(key)
 

@@ -1,12 +1,12 @@
-import { check, del, get, set } from './store'
-
-type RequestWithParam = Request & { param?: string }
+import { auth, del, get, set } from './store'
 
 type Method = 'GET' | 'POST' | 'DELETE'
 
 type Route = {
-  [key in Method]?: (req: RequestWithParam, key: string) => Promise<Response>
+  [key in Method]?: (req: Request) => Promise<Response>
 }
+
+const publicRoutes = ['/']
 
 const routes: Record<string, Route> = {
   '/': {
@@ -21,36 +21,39 @@ const routes: Record<string, Route> = {
       )
   },
   '/store': {
-    GET: async (req: RequestWithParam, key: string) => Response.json(get(key)),
-    POST: async (req: RequestWithParam, key: string) => {
+    GET: async (req: Request) => Response.json(get(key(req))),
+    POST: async (req: Request) => {
       const jsonBody = await req.json()
-      set(jsonBody, key)
+      set(jsonBody, key(req))
       return Response.json(jsonBody)
     },
-    DELETE: async (req: RequestWithParam, key: string) =>
-      Response.json(del(key))
+    DELETE: async (req: Request) => Response.json(del(key(req)))
   }
 }
+
+const getToken = (req: Request) =>
+  req.headers.get('Authorization')?.split(' ')[1] || '___anon'
+
+const getStoreId = (req: Request) =>
+  new URL(req.url).pathname.split('/store/')[1] || '___public'
+
+const key = (req: Request) => `${getToken(req)}-${getStoreId(req)}`
 
 const e404 = () => new Response('Not found', { status: 404 })
 
 export const router = (req: Request) => {
-  const token = req.headers.get('Authorization')?.split(' ')[1] || '___all'
+  const { method, url } = req
+  const pathname = new URL(url).pathname
+  const endpoint = `/${pathname.split('/')[1]}`
 
-  if (!check(token)) {
+  const token = getToken(req)
+
+  if (!publicRoutes.includes(pathname) && !auth(token)) {
     return new Response(
       `Please request access to this store before accessing it.`,
       { status: 401 }
     )
   }
 
-  const { method, url } = req
-  const pathname = new URL(url).pathname
-  const endpoint = `/${pathname.split('/')[1]}`
-
-  const storeId = pathname.split('/store/')[1] || '___public'
-
-  return (
-    routes[endpoint]?.[method as Method]?.(req, `${token}-${storeId}`) || e404()
-  )
+  return routes[endpoint]?.[method as Method]?.(req) || e404()
 }
